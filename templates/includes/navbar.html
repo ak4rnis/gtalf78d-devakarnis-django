@@ -28,7 +28,7 @@
     <div class="row align-items-center">
         <div class="col-lg-2 col-md-3 col-6">
             <a href="{% url 'home' %}" class="brand-wrap">
-                <img class="logo" src="{% static 'images/logo01.png' %}">
+                <img class="logo" src="https://w7.pngwing.com/pngs/522/512/png-transparent-e-commerce-2018-online-shopping-amazon-com-supermercado-text-retail-logo.png">
             </a> <!-- brand-wrap.// -->
         </div>
         <div class="col-lg col-sm col-md col-6 flex-grow-0">
@@ -70,7 +70,13 @@
                             </div>
                         </div>
                         {% else %}
-                        
+                            <div class="widget-header">
+                                <small class="title text-muted">Bienvenido {{user.first_name}}!</small>
+                                <div>
+                                    <a href="">Dashboard</a> <span class="dark-transp"> | </span>
+                                    <a href="{% url 'logout' %}">Salir Sesion</a>
+                                </div>
+                            </div>
                         {% endif %}
                         <a href="{% url 'cart' %}" class="widget-header pl-3 ml-3">
                             <div class="icon icon-sm rounded-circle border"><i class="fa fa-shopping-cart"></i></div>
