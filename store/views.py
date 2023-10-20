@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from carts.models import CartItem
 from carts.views import _cart_id
 from category.models import Category
@@ -6,6 +6,7 @@ from category.models import Category
 from store.models import Product
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
+from .forms import ReviewForm
 
 # Create your views here.
 
@@ -55,3 +56,5 @@ def search(request):
                 'product_count': product_count,
             }
             return render(request, 'store/store.html', context)
+
+def submit_review(request):
