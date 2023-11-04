@@ -1,19 +1,20 @@
-import datetime
-from django.shortcuts import redirect, render
-
-from carts.models import CartItem
-from orders.forms import OrderForm
-from orders.models import Order, OrderProduct, Payment
-import json
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
-
+from carts.models import CartItem
+from .forms import OrderForm
+import datetime
+from .models import Order, Payment, OrderProduct
+import json
 from store.models import Product
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
 
 # Create your views here.
 
 def payments(request):
     body = json.loads(request.body)
     order = Order.objects.get(user=request.user, is_ordered=False, order_number=body['orderID'])
+
     payment = Payment(
         user = request.user,
         payment_id = body['transID'],
@@ -22,19 +23,20 @@ def payments(request):
         status = body['status'],
     )
     payment.save()
+
     order.payment = payment
     order.is_ordered = True
     order.save()
 
+    # Mover todos los carrito items hacia la tabla order product
     cart_items = CartItem.objects.filter(user=request.user)
+
     for item in cart_items:
         orderproduct = OrderProduct()
-        orderproduct.order = order.id # type: ignore
+        orderproduct.order_id = order.id # type: ignore
         orderproduct.payment = payment
-        orderproduct.user = request.user.id
-        orderproduct.payment = payment
-
-        orderproduct.product = item.product_id # type: ignore
+        orderproduct.user_id = request.user.id # type: ignore
+        orderproduct.product_id = item.product_id # type: ignore
         orderproduct.quantity = item.quantity
         orderproduct.product_price = item.product.price
         orderproduct.ordered = True
@@ -42,45 +44,48 @@ def payments(request):
 
         cart_item = CartItem.objects.get(id=item.id) # type: ignore
         product_variation = cart_item.variations.all()
-        orderproduct= OrderProduct.objects.get(id=orderproduct.id) # type: ignore
+        orderproduct = OrderProduct.objects.get(id=orderproduct.id) # type: ignore
         orderproduct.variation.set(product_variation)
         orderproduct.save()
 
-        product = Product.objects(id=item.product_id) # type: ignore
+        product = Product.objects.get(id=item.product_id) # type: ignore
         product.stock -= item.quantity
         product.save()
-    
+
     CartItem.objects.filter(user=request.user).delete()
 
+    
+
     data = {
-        'order': order.order_number,
-        'transID': payment.payment_id
+        'order_number': order.order_number,
+        'transID' : payment.payment_id,
     }
 
     return JsonResponse(data)
 
 
 
-
-
-def place_order(request, total = 0, quantity=0):
+def place_order(request, total=0, quantity=0):
     current_user = request.user
     cart_items = CartItem.objects.filter(user=current_user)
     cart_count = cart_items.count()
 
     if cart_count <= 0:
         return redirect('store')
-    grant_total = 0
+
+    grand_total = 0
     tax = 0
 
     for cart_item in cart_items:
         total += (cart_item.product.price * cart_item.quantity)
         quantity += cart_item.quantity
 
-    tax = (2 * total)/100 
+    tax = (2 * total)/100
     grand_total = total + tax
+
     if request.method == 'POST':
         form = OrderForm(request.POST)
+
         if form.is_valid():
             data = Order()
             data.user = current_user
@@ -98,26 +103,31 @@ def place_order(request, total = 0, quantity=0):
             data.tax = tax
             data.ip = request.META.get('REMOTE_ADDR')
             data.save()
+
             yr=int(datetime.date.today().strftime('%Y'))
             mt=int(datetime.date.today().strftime('%m'))
             dt=int(datetime.date.today().strftime('%d'))
             d = datetime.date(yr,mt,dt)
             current_date = d.strftime("%Y%m%d")
+            # 20280110
             order_number = current_date + str(data.id) # type: ignore
             data.order_number = order_number
             data.save()
+
             order = Order.objects.get(user=current_user, is_ordered=False, order_number=order_number)
             context = {
                 'order': order,
                 'cart_items': cart_items,
-                'total': total,
+                'total' : total,
                 'tax': tax,
-                'grand_total': grand_total
+                'grand_total': grand_total,
             }
-            return redirect(request, 'orders/payments.html', context)
+
+            return render(request, 'orders/payments.html', context)
     else:
         return redirect('checkout')
-    
+
+
 
 def order_complete(request):
     order_number = request.GET.get('order_number')
@@ -126,20 +136,21 @@ def order_complete(request):
     try:
         order = Order.objects.get(order_number=order_number, is_ordered=True)
         ordered_products = OrderProduct.objects.filter(order_id=order.id) # type: ignore
+
         subtotal = 0
-        for  i in  ordered_products:
+        for i in ordered_products:
             subtotal += i.product_price*i.quantity
-        payment = Payment.objects.get(payment_id=transID) # type: ignore
+
+        payment = Payment.objects.get(payment_id=transID)
+
         context = {
             'order': order,
             'ordered_products': ordered_products,
             'order_number': order.order_number,
-            'transID': payment.id, # type: ignore
+            'transID': payment.payment_id,
             'payment': payment,
-            'subtotal': subtotal
+            'subtotal': subtotal,
         }
         return render(request, 'orders/order_complete.html', context)
     except(Payment.DoesNotExist, Order.DoesNotExist):
         return redirect('home')
-    
-
